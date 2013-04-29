@@ -1,0 +1,42 @@
+{
+	"name": "cyberspectrum/buildtools",
+	"description":"Base build settings for the CyberSpectrum build toolchain",
+	"keywords": ["build", "toolchain"],
+	"homepage":"http://cyberspectrum.de",
+	"license":"LGPLv3",
+	"authors": [
+		{
+			"name":"Christian Schiffler",
+			"email":"c.schiffler@cyberspectrum.de",
+			"homepage":"http://www.cyberspectrum.de",
+			"role":"Project leader"
+		}
+	],
+	"require":{
+		"phing/phing": "~2.5",
+		"phpdocumentor/phpdocumentor": "dev-master",
+		"sebastian/phpcpd": ">=1.4.0,<2.0",
+		"phploc/phploc": "@dev",
+		"pdepend/pdepend": ">=1.1.0,<2.0",
+		"phpmd/phpmd": ">=1.4.0,<2.0",
+		"phpunit/phpunit": ">=3.7.0,<4.0",
+		"phpunit/dbunit" : ">=1.2.0,<2.0",
+		"mayflower/php-codebrowser": "1.0.*@dev",
+		"squizlabs/php_codesniffer": "*"
+	},
+	"require-dev": {
+		"contao/core": "*"
+	},
+	"autoload": {
+		"psr-0": {
+			"CyberSpectrum\\TestHarness": "src/"
+		}
+	},
+	"extra": {
+		"branch-alias": {
+			"dev-master": "0.5.x-dev"
+		}
+	},
+	"minimum-stability": "dev",
+	"prefer-stable": true
+}

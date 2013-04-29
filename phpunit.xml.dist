@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit backupGlobals="false"
+		 backupStaticAttributes="false"
+		 bootstrap="src/prepare.php"
+		 colors="true"
+		 convertErrorsToExceptions="true"
+		 convertNoticesToExceptions="true"
+		 convertWarningsToExceptions="true"
+		 processIsolation="true"
+		 strict="true">
+	<testsuites>
+		<testsuite name="BuildToolsTestSuite">
+			<directory suffix="Test.php">test/</directory>
+		</testsuite>
+	</testsuites>
+	<filter>
+		<whitelist processUncoveredFilesFromWhitelist="true">
+			<directory suffix=".php">./src</directory>
+		</whitelist>
+	</filter>
+	<php>
+		<const name="CONTAO_DIRECTORY_TEST" value="vendor/contao/core"/>
+	</php>
+</phpunit>

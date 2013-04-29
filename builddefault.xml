@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+This is a default build file that sits outside of any project folders, but
+which is imported into the project build file like so:
+    <import file="vendor/cyberspectrum/buildtools/builddefault.xml"/>
+All relative references in this file, are assumed to be from the base of the
+project build file.
+If an identically named target in the project build file is also present in
+this imported file, the one from the project file takes precedence. e.g. a
+project build file can define a different "build" target to remove the ftp and
+ftp-htaccess targets, for instance.
+-->
+
+<project name="builddefault" default="build" description="Automated build">
+
+	<target name="build" depends="init, clean, verify, analyze, dist, docs"
+		description="Do a full build"/>
+
+	<target name="verify" depends="init, clean, lint"
+		description="Verify the quality of the code"/>
+
+	<target name="analyze" depends="init, clean, phploc, pdepend, phpmd-ci, phpcs-ci, phpcs-, phpcpd, phpunit"
+		description="Do static analysis of the code"/>
+
+	<target name="docs" depends="init, clean, phpdoc, phpcb, htaccess, copysvg, copybuild"/>
+
+	<target name="init" depends="-load-properties, -setup-dirs, -setup-filesets" unless="project.initialised">
+		<property name="project.initialised" value="true"/>
+	</target>
+
+	<target name="-load-properties">
+		<!-- Take a project name and make it safe for use as directory or file names -->
+		<php expression="str_replace(' ', '-', strtolower('${phing.project.name}'))" returnProperty="project.name.safe"/>
+
+		<!--
+		The ${phing.file.builddefault} value is the path to this imported file.
+		The property name matches the name attribute above for the project in this file.
+		-->
+		<php function="dirname" returnProperty="imported.base.dir">
+			<param value="${phing.file.builddefault}"/>
+		</php>
+		<!-- Pull in the global / default properties -->
+		<property file="${imported.base.dir}/build.default.properties" override="true"/>
+
+		<!--
+		Pull in the per-project properties.
+		Since this build file is imported into other build files, this line
+		loads the build.properties file in reference to the project build.xml file
+		i.e. project/build.properties, and overrides the global defaults.
+		-->
+		<property file="build.properties" override="true"/>
+
+		<!-- Sets a version from git hash (used in .htaccess) if none has already been set. -->
+		<exec command ="git rev-parse HEAD" outputProperty="project.version" />
+
+		<!-- Sets a stable version (used in .htaccess) if one has not already been set. -->
+		<property name="project.stable.version" value="${project.version}"/>
+
+	</target>
+
+	<target name="-setup-dirs" depends="-load-properties">
+		<!-- My project set up is as follows:
+
+		ProjectName
+		 - build (all the build file stuff)
+		 - - api (phpDocumentor-generated API documentation which is later uploaded via FTP)
+		 - - code-browser (phpcb-generated code browser)
+		 - - dist (distributable zip file of source generated here)
+		 - - logs (log files from static analysis)
+		 - - pdepend (SVG images generated from PHP_Depend)
+		 - src (the actual source)
+		 - nbproject (Netbeans project stuff)
+
+		By default the Phing built-in property $project.basedir points to my build file directory,
+		so here, we grab the path to the level above, and then create friendlier aliases.
+		-->
+<!-->		<php function="dirname" returnProperty="project.dir">
+			<param value="${project.basedir}"/>
+		</php>
+-->
+		<property name="project.dir" value="${project.basedir}"/>
+
+		<property name="build.dir" value="${project.dir}/.build"/>
+		<property name="src.dir" value="${project.dir}/src"/>
+		<property name="docs.dir" value="${project.dir}/docs"/>
+		<property name="tests.dir" value="${project.dir}/tests"/>
+
+		<echo message="Assigning build directories to properties" level="debug"/>
+		<property name="build.api.dir" value="${build.dir}/api"/>
+		<property name="build.codebrowser.dir" value="${build.dir}/code-browser"/>
+		<property name="build.dist.dir" value="${build.dir}/dist"/>
+		<property name="build.logs.dir" value="${build.dir}/logs"/>
+		<property name="build.pdepend.dir" value="${build.dir}/pdepend"/>
+	</target>
+
+	<target name="-setup-filesets">
+		<patternset id="php">
+			<include name="**/*.php"/>
+		</patternset>
+
+		<patternset id="tests">
+			<include name="**/*Test.php"/>
+		</patternset>
+
+		<patternset id="js">
+			<!-- Don't include minified files as they won't pass code standards -->
+			<include name="**/*_src.js"/>
+			<exclude name="**/*.js"/>
+		</patternset>
+
+		<patternset id="css">
+			<!-- Don't include minified files as they won't pass code standards -->
+			<include name="**/*_src.css"/>
+			<exclude name="**/*.css"/>
+		</patternset>
+
+		<patternset id="zip">
+			<!-- Exclude Mac / Windows / version control artifacts from zip -->
+			<exclude name="**/.DS_Store"/>
+			<exclude name="**/Thumbs.db"/>
+			<exclude name=".svn/"/>
+			<exclude name=".git/"/>
+		</patternset>
+
+		<patternset id="svg">
+			<include name="**/*.svg"/>
+		</patternset>
+
+		<fileset dir="${src.dir}" id="php.files">
+			<patternset refid="php"/>
+		</fileset>
+
+		<fileset dir="${src.dir}" id="js.files">
+			<patternset refid="js"/>
+		</fileset>
+
+		<fileset dir="${src.dir}" id="css.files">
+			<patternset refid="css"/>
+		</fileset>
+
+		<fileset dir="${src.dir}" id="zip.files">
+			<patternset refid="zip"/>
+		</fileset>
+
+		<fileset dir="${build.pdepend.dir}" id="pdepend.svg.files">
+			<patternset refid="svg"/>
+		</fileset>
+
+		<fileset dir="${tests.dir}" id="test.files">
+			<patternset refid="tests"/>
+		</fileset>
+
+		<property name="coding-standards.file" value="${project.name.safe}-coding-standards.txt"/>
+	</target>
+
+	<target name="clean" depends="init" unless="project.cleaned">
+		<!-- Remove previous build subdirectories, and recreate fresh versions -->
+		<echo message="Deleting build directories" level="debug"/>
+		<delete dir="${build.api.dir}"/>
+		<delete dir="${build.codebrowser.dir}"/>
+		<delete dir="${build.logs.dir}"/>
+		<delete dir="${build.pdepend.dir}"/>
+
+		<echo message="Creating build directories" level="debug"/>
+		<mkdir dir="${build.api.dir}"/>
+		<mkdir dir="${build.codebrowser.dir}"/>
+		<mkdir dir="${build.dist.dir}"/>
+		<mkdir dir="${build.logs.dir}"/>
+		<mkdir dir="${build.pdepend.dir}"/>
+
+		<property name="project.cleaned" value="true"/>
+	</target>
+
+	<target name="dist" depends="init" description="Create distributable file">
+		<!--
+		Within the dist folder, create a subfolder by the name of the project, and a sub-subfolder
+		to that, also with the name of the project.
+		By creating this extra level, we can then move the sub-subfolder into the zip file. This folder
+		can then be extracted from the zip in one go (and it's how WordPress plugins and theme should be)
+		rather than the zip containing individual files as immediate children.
+		-->
+		<property name="build.dist.temp.dir" value="${build.dist.dir}/${project.name.safe}"/>
+		<property name="build.dist.zip.root.dir" value="${build.dist.temp.dir}/${project.name.safe}"/>
+
+		<mkdir dir="${build.dist.temp.dir}"/>
+		<mkdir dir="${build.dist.zip.root.dir}"/>
+		<copy todir="${build.dist.zip.root.dir}">
+			<fileset refid="zip.files"/>
+		</copy>
+
+		<zip destfile="${build.dist.dir}/${project.name.safe}-${project.version}.zip">
+			<fileset dir="${build.dist.temp.dir}/"/>
+		</zip>
+
+		<!--
+		We're finished with the temporary folder and it's subfolder, so delete them (deleting
+		the parent temp folder is enough).
+		-->
+		<delete dir="${build.dist.temp.dir}"/>
+	</target>
+
+	<target name="lint" depends="init" description="Check files for syntax errors">
+		<phplint haltonfailure="true" cachefile="${build.logs.dir}/cachefile.txt">
+			<fileset refid="php.files"/>
+		</phplint>
+	</target>
+
+	<target name="phpunit" depends="init" description="Run unit tests">
+		<exec executable="vendor/bin/phpunit" logoutput="true" checkreturn="true" level="debug">
+			<arg value="--coverage-clover"/>
+			<arg value="${build.logs.dir}/phpunit.xml"/>
+		</exec>
+	</target>
+
+	<target name="phpunit__" depends="init" description="Run unit tests">
+		<!--<phpunit printsummary="true" haltonfailure="true" bootstrap="${tests.dir}\bootstrap.php">-->
+		<phpunit printsummary="true" bootstrap="${tests.dir}\bootstrap.php">
+			<!--<formatter todir="${logs.dir}" type="xml"/>-->
+			<batchtest>
+				<fileset refid="test.files"/>
+			</batchtest>
+		</phpunit>
+	</target>
+
+	<target name="phploc" depends="init" description="Measure project size using PHPLOC">
+		<exec executable="vendor/bin/phploc" logoutput="true" checkreturn="true" level="debug">
+			<arg value="--log-csv"/>
+			<arg value="${build.logs.dir}/phploc.csv"/>
+			<arg path="${src.dir}"/>
+		</exec>
+	</target>
+
+	<target name="pdepend" depends="init" description="Calculate software metrics using PHP_Depend">
+		<phpdepend>
+			<fileset refid="php.files"/>
+			<logger type="jdepend-xml" outfile="${build.logs.dir}/jdepend.xml"/>
+			<logger type="summary-xml" outfile="${build.logs.dir}/jdepend-summary.xml"/>
+			<logger type="jdepend-chart" outfile="${build.pdepend.dir}/dependencies.svg"/>
+			<logger type="overview-pyramid" outfile="${build.pdepend.dir}/overview-pyramid.svg"/>
+		</phpdepend>
+	</target>
+
+	<target name="phpmd-ci" depends="init" description="Perform project mess detection using PHPMD">
+<!-- 		<phpmd rulesets="codesize,design,naming,unusedcode"> -->
+		<phpmd rulesets="codesize,design,unusedcode">
+			<fileset refid="php.files"/>
+			<formatter type="xml" outfile="${build.logs.dir}/pmd.xml"/>
+		</phpmd>
+	</target>
+
+	<!--
+	This almost duplication of the above target, is so that it can be run standalone in the command
+	line, and have the results echoed to screen, instead of a file.
+	-->
+	<target name="phpmd" depends="init" description="Perform project mess detection using PHPMD">
+<!-- 		<phpmd rulesets="codesize,design,naming,unusedcode"> -->
+		<phpmd rulesets="codesize,design,unusedcode">
+			<fileset refid="php.files"/>
+		</phpmd>
+	</target>
+
+	<target name="phpcs-ci" depends="init" description="Find coding standard violations using PHP_CodeSniffer">
+<!-- Sadly this task is broken in phing currently.
+		<phpcodesniffer standard="${phpcs.standard}" encoding="${phpcs.encoding}">
+			<fileset refid="php.files"/>
+			<formatter type="checkstyle" outfile="${build.logs.dir}/checkstyle.xml"/>
+		</phpcodesniffer>
+-->
+		<exec executable="vendor/bin/phpcs" logoutput="true" checkreturn="false" level="debug">
+			<arg value="--standard=${phpcs.standard}"/>
+			<arg value="--encoding=${phpcs.encoding}"/>
+			<arg value="--report=checkstyle"/>
+			<arg value="--report-file=${build.logs.dir}/checkstyle.xml"/>
+			<arg path="${src.dir}"/>
+		</exec>
+	</target>
+
+	<!--
+	This almost duplication of the above target, is so that it can be run standalone in the command
+	line, and have the results echoed to screen, instead of a file.
+	-->
+	<target name="phpcs" depends="init" description="Find coding standard violations using PHP_CodeSniffer">
+<!-- Sadly this task is broken in phing currently.
+		<phpcodesniffer standard="${phpcs.standard}" encoding="${phpcs.encoding}">
+			<fileset refid="php.files"/>
+		</phpcodesniffer>
+-->
+		<exec executable="vendor/bin/phpcs" logoutput="true" checkreturn="false" level="debug">
+			<arg value="--standard=${phpcs.standard}"/>
+			<arg value="--encoding=${phpcs.encoding}"/>
+			<arg path="${src.dir}"/>
+		</exec>
+	</target>
+
+	<!--
+	This version creates a simple text report of CS issues which can then be uploaded to show the client.
+	-->
+	<target name="phpcs-" depends="init" description="Find coding standard violations using PHP_CodeSniffer">
+<!-- Sadly this task is broken in phing currently.
+		<phpcodesniffer standard="${phpcs.standard}" encoding="${phpcs.encoding}">
+			<fileset refid="php.files"/>
+			<formatter type="emacs" outfile="${build.logs.dir}/${coding-standards.file}"/>
+		</phpcodesniffer>
+-->
+		<exec executable="vendor/bin/phpcs" logoutput="true" checkreturn="false" level="debug">
+			<arg value="--standard=${phpcs.standard}"/>
+			<arg value="--encoding=${phpcs.encoding}"/>
+			<arg value="--report=emacs"/>
+			<arg value="--report-file=${build.logs.dir}/${coding-standards.file}"/>
+			<arg path="${src.dir}"/>
+		</exec>
+
+		<reflexive file="${build.logs.dir}/${coding-standards.file}">
+			<filterchain>
+				<replaceregexp>
+					<regexp pattern="${src.dir}" replace=""/>
+				</replaceregexp>
+			</filterchain>
+		</reflexive>
+	</target>
+
+	<target name="phpcpd" depends="init" description="Find duplicate code using PHPCPD">
+<!-- Sadly this task is broken in phing currently.
+		<phpcpd minLines="10" minTokens="20">
+			<fileset refid="php.files"/>
+			<formatter type="pmd" outfile="${build.logs.dir}/pmd-cpd.xml"/>
+		</phpcpd>
+-->
+		<exec executable="vendor/bin/phpcpd" logoutput="true" checkreturn="false" level="debug">
+			<arg value="--min-lines"/>
+			<arg value="10"/>
+			<arg value="--min-tokens"/>
+			<arg value="20"/>
+			<arg value="--log-pmd"/>
+			<arg value="${build.logs.dir}/pmd-cpd.xml"/>
+			<arg path="${src.dir}"/>
+		</exec>
+	</target>
+
+	<target name="phpdoc" depends="init" description="Generate API documentation">
+<!-- Sadly this task is broken in phing currently.
+		<phpdoc2 title="${phing.project.name} ${project.version}" destdir="${build.api.dir}">
+			<fileset dir="${src.dir}"/>
+		</phpdoc2>
+-->
+		<exec executable="vendor/bin/phpdoc.php" logoutput="true" checkreturn="true" level="debug">
+			<arg value="--title=&quot;${phing.project.name} ${project.version}&quot;"/>
+			<arg value="--target=${build.api.dir}"/>
+			<arg value="--encoding=${phpcs.encoding}"/>
+			<arg value="--directory=${src.dir}"/>
+			<arg value="--template=new-black"/>
+		</exec>
+	</target>
+
+	<target name="phpcb" depends="init" description="Aggregate tool output with PHP_CodeBrowser">
+		<exec executable="vendor/bin/phpcb" logoutput="true" checkreturn="true" level="debug">
+			<arg value="--log"/>
+			<arg path="${build.logs.dir}"/>
+			<arg value="--source"/>
+			<arg path="${src.dir}"/>
+			<arg value="--output"/>
+			<arg path="${build.codebrowser.dir}"/>
+			<arg value="--excludeOK"/>
+		</exec>
+	</target>
+
+	<target name="htaccess" depends="init" description="Create .htaccess file for docs">
+		<!-- Redirects http://docs.example.com/projectname to http://docs.example.com/projectname/version -->
+		<echo file="${build.dir}/.htaccess">
+RewriteEngine On
+RewriteCond %{REQUEST_URI} ^(.*)/${project.name.safe}/?$
+RewriteRule ^(.*) $1/${project.name.safe}/${project.stable.version} [R=301,L]
+		</echo>
+	</target>
+
+	<target name="copysvg" depends="init" description="Copy PHP_Depend SVGs to deployment folder">
+		<copy todir="${deployment.dir}">
+			<fileset refid="pdepend.svg.files"/>
+		</copy>
+	</target>
+
+	<target name="copybuild" depends="init" description="Copy build directory to deployment folder.">
+		<mkdir dir="${deployment.dir}/${project.stable.version}"/>
+		<copy todir="${deployment.dir}/${project.stable.version}">
+			<fileset dir="${build.dir}">
+				<exclude name=".htaccess"/>
+			</fileset>
+		</copy>
+		<copy todir="${deployment.dir}">
+			<fileset dir="${build.dir}">
+				<include name=".htaccess"/>
+			</fileset>
+		</copy>
+	</target>
+</project>
