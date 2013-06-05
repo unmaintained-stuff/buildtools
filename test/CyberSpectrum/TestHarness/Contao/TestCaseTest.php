@@ -22,6 +22,8 @@ class TestCaseTest extends \PHPUnit_Framework_TestCase
 
 		$this->assertTrue($exception, 'The notice was not being passed to the error handler.');
 
+		$test = new TestCase();
+
 		$exception=false;
 		try
 		{
@@ -34,6 +36,8 @@ class TestCaseTest extends \PHPUnit_Framework_TestCase
 
 		$this->assertFalse($exception, 'The notice was being passed to the error handler.');
 
+		$test = new TestCase();
+
 		$exception=false;
 		try
 		{
@@ -45,6 +49,8 @@ class TestCaseTest extends \PHPUnit_Framework_TestCase
 		}
 
 		$this->assertTrue($exception, 'The warning was not being passed to the error handler.');
+
+		$test = new TestCase();
 
 		$exception=false;
 		try
@@ -198,6 +204,7 @@ class TestCaseTest extends \PHPUnit_Framework_TestCase
 		$tmp = realpath(__DIR__ . '/../../../../') . '/tmp' . time();
 		mkdir($tmp, 0777);
 		mkdir($tmp . '/system', 0777);
+		mkdir($tmp . '/system/config', 0777);
 
 		$test = new TestCase();
 
@@ -219,9 +226,10 @@ class TestCaseTest extends \PHPUnit_Framework_TestCase
 		Reflector::invoke($test, 'tearDown');
 
 		// Cleanup the mess we made.
-		unlink($tmp . '/system/initialize.php');
-		rmdir($tmp . '/system');
-		rmdir($tmp);
+		$this->assertTrue(unlink($tmp . '/system/initialize.php'));
+		$this->assertTrue(rmdir($tmp . '/system/config'));
+		$this->assertTrue(rmdir($tmp . '/system'));
+		$this->assertTrue(rmdir($tmp));
 	}
 
 	/**

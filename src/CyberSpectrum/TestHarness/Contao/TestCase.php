@@ -78,6 +78,8 @@ class TestCase extends \PHPUnit_Framework_TestCase
 					file_get_contents(self::$contao . '/system/initialize.php')
 				)
 			);
+			// Touch the localconfig.php so Contao thinks the installation is complete.
+			touch(self::$contao . '/system/config/localconfig.php');
 		}
 		else
 		{
@@ -153,6 +155,7 @@ class TestCase extends \PHPUnit_Framework_TestCase
 		restore_exception_handler();
 
 		set_error_handler(array('CyberSpectrum\\TestHarness\\Contao\\TestCase', 'handleError'));
+		error_reporting(E_ALL|E_STRICT);
 	}
 
 	/**
@@ -454,6 +457,7 @@ class TestCase extends \PHPUnit_Framework_TestCase
 		if (file_exists(self::$contao . '/system/initialize.test.php'))
 		{
 			unlink(self::$contao . '/system/initialize.test.php');
+			unlink(self::$contao . '/system/config/localconfig.php');
 		}
 	}
 }
