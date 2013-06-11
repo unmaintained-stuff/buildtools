@@ -78,8 +78,6 @@ class TestCase extends \PHPUnit_Framework_TestCase
 					file_get_contents(self::$contao . '/system/initialize.php')
 				)
 			);
-			// Touch the localconfig.php so Contao thinks the installation is complete.
-			touch(self::$contao . '/system/config/localconfig.php');
 		}
 		else
 		{
@@ -91,6 +89,9 @@ class TestCase extends \PHPUnit_Framework_TestCase
 				)
 			);
 		}
+
+		// Touch the localconfig.php so Contao thinks the installation is complete.
+		touch(self::$contao . '/system/config/localconfig.php');
 
 		require_once self::$contao . '/system/initialize.test.php';
 
