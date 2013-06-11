@@ -454,21 +454,14 @@ class TestCaseTest extends \PHPUnit_Framework_TestCase
 		$keep = array();
 		foreach ($configKeys as $key)
 		{
-			if (!isset($GLOBALS[$key]))
-			{
-				$this->markTestSkipped(sprintf('Database config from phpunit.xml not complete - missing key %s.', $key));
-				return;
-			}
-
 			$keep[$key] = $GLOBALS[$key];
 			unset($GLOBALS[$key]);
+			putenv($key.'=');
 		}
 
 		$test = new TestCase();
 
-		$needDb = Reflector::getMethod($test, 'prepareDatabaseConfig');
-
-		$this->assertFalse($needDb->invoke($test));
+		$this->assertFalse(Reflector::invoke($test, 'prepareDatabaseConfig'));
 
 		Reflector::invoke($test, 'bootContao');
 
@@ -477,18 +470,9 @@ class TestCaseTest extends \PHPUnit_Framework_TestCase
 			$this->fail('Contao not booted.');
 		}
 
-		while ($key = array_pop($configKeys))
-		{
-			$GLOBALS[$key] = $keep[$key];
-			if (count($configKeys))
-			{
-				$this->assertFalse($needDb->invoke($test));
-			}
-		}
+		$this->assertFalse(Reflector::invoke($test, 'prepareDatabaseConfig'));
 
-		$this->assertTrue($needDb->invoke($test));
-
-		$this->assertTrue(Reflector::invoke($test, 'connectDatabase'));
+		$this->assertFalse(Reflector::invoke($test, 'connectDatabase'));
 	}
 
 	/**

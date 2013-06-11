@@ -188,6 +188,21 @@ class TestCase extends \PHPUnit_Framework_TestCase
 		{ \PHPUnit_Util_ErrorHandler::handleError($errno, $errstr, $errfile, $errline); }
 	}
 
+	protected function getConfigOption($name)
+	{
+		if ($value = getenv($name))
+		{
+			return $value;
+		}
+
+		if (array_key_exists($name, $GLOBALS) && ($value = $GLOBALS[$name]) !== null)
+		{
+			return $value;
+		}
+
+		return null;
+	}
+
 	/**
 	 * Prepare database configuration as Contao expects it to be from the configuration provided via phpunit.xml or
 	 * command line.
@@ -196,14 +211,7 @@ class TestCase extends \PHPUnit_Framework_TestCase
 	 */
 	protected function prepareDatabaseConfig()
 	{
-		if (defined('TL_MODE')
-			&& array_key_exists('DB_TYPE', $GLOBALS)
-			&& array_key_exists('DB_HOST', $GLOBALS)
-			&& array_key_exists('DB_PORT', $GLOBALS)
-			&& array_key_exists('DB_USER', $GLOBALS)
-			&& array_key_exists('DB_PASS', $GLOBALS)
-			&& array_key_exists('DB_NAME', $GLOBALS)
-		)
+		if (defined('TL_MODE') && ($this->getConfigOption('DB_USER')))
 		{
 			foreach (array(
 				'DB_TYPE' => 'dbDriver',
@@ -214,9 +222,13 @@ class TestCase extends \PHPUnit_Framework_TestCase
 				'DB_PORT' => 'dbPort',
 			) as $from => $to)
 			{
-				$GLOBALS['TL_CONFIG'][$to] = $GLOBALS[$from];
-			}
+				$value = $this->getConfigOption($from);
 
+				if ($value)
+				{
+					$GLOBALS['TL_CONFIG'][$to] = $value;
+				}
+			}
 			return true;
 		}
 

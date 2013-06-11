@@ -19,11 +19,49 @@ class DbWorkerTest extends \PHPUnit_Framework_TestCase
 			$this->fail('Contao not booted.');
 		}
 
-		$this->assertTrue(Reflector::invoke($this->testCase, 'connectDatabase'));
+		$this->assertTrue(Reflector::invoke($this->testCase, 'connectDatabase'),
+			'Database not connected: ' . var_export($GLOBALS['TL_CONFIG']['dbHost'], true));
 
 		$this->worker = Reflector::invoke($this->testCase, 'getDbWorker');
 	}
 
+	public function testGetConfig()
+	{
+		$this->testCase = new TestCase();
+
+		if (!(Reflector::invoke($this->testCase, 'bootContao') && defined('VERSION')))
+		{
+			$this->fail('Contao not booted.');
+		}
+
+		// Initialize empty.
+		putenv('DB_USER=');
+		$GLOBALS['DB_USER'] = null;
+
+		$this->assertEmpty(
+			$value = Reflector::invoke($this->testCase, 'getConfigOption', 'DB_USER'),
+			sprintf('Config value DB_USER is not empty but %s', var_export($value, true))
+		);
+
+		putenv('DB_USER=testuser');
+		$this->assertEquals(
+			'testuser',
+			$value = Reflector::invoke($this->testCase, 'getConfigOption', 'DB_USER'),
+			sprintf('Config value DB_USER from environment is %s', var_export($value, true))
+		);
+
+		putenv('DB_USER=');
+		$GLOBALS['DB_USER'] = 'testuser';
+		$this->assertEquals(
+			'testuser',
+			$value = Reflector::invoke($this->testCase, 'getConfigOption', 'DB_USER'),
+			sprintf('Config value DB_USER from globals is %s', var_export($value, true))
+		);
+	}
+
+	/**
+	 * @depends testGetConfig
+	 */
 	public function testDropTables()
 	{
 		$this->bootStrap();
@@ -36,6 +74,9 @@ class DbWorkerTest extends \PHPUnit_Framework_TestCase
 		}
 	}
 
+	/**
+	 * @depends testGetConfig
+	 */
 	public function testCreateTable()
 	{
 		$this->bootStrap();
@@ -48,9 +89,9 @@ class DbWorkerTest extends \PHPUnit_Framework_TestCase
 		}
 	}
 
-
-
-
+	/**
+	 * @depends testGetConfig
+	 */
 	public function testListTables()
 	{
 		$this->bootStrap();
